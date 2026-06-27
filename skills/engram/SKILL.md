@@ -45,6 +45,14 @@ When installed via `install.ps1`, this skill lives at
 `~\.copilot\skills\engram\` — so the script is at
 `~\.copilot\skills\engram\scripts\engram_search.py`.
 
+**Pick the command that matches the question — don't default to `list`:**
+
+| Question | Command |
+|----------|---------|
+| "How many / how much / what did I do this week?" (reports, standups, totals) | **`stats`** — true totals, never truncated |
+| "Which chat did I discuss `<topic>` in?" (topic recall) | **`list`** — ranked matches |
+| "Open / what happened in session `<id>`?" | **`show`** — full transcript |
+
 ### 1. Find sessions — `list`
 
 ```powershell
@@ -130,24 +138,32 @@ python engram_search.py stats --query recon --days 0  # all-time count of "recon
 python engram_search.py stats --days 30 --by day --json
 ```
 
-### 4. Quick keyword check via Engram CLI (Chat store only)
-
-For a fast peek into just the Chat store, you can also use Engram's own CLI:
+**Weekly report / standup recipe** — shape first, then themes:
 
 ```powershell
-python "$env:LOCALAPPDATA\Engram\engram.py" query "<keywords>"
-python "$env:LOCALAPPDATA\Engram\engram.py" status   # last run, watermark, totals
+python engram_search.py stats --days 7              # counts by day / repo / source (never truncated)
+python engram_search.py list  --days 7 --limit 100  # session titles for the narrative
 ```
 
-Prefer `engram_search.py` when you want CLI sessions in the results too.
+## Recommended flow
 
-## Going beyond the script — direct SQL
+1. **Match intent to command first** (see the table under *How to use*):
+   `stats` for counts/reports, `list` for topic recall, `show` to read a session.
+2. **Reports / "how much / how many" →** run `stats` (`--days N` or `--today`)
+   for the true day/repo/source shape, then `list` over the same window to pull
+   the titles that become your narrative. Never hand-count `list` output.
+3. **Topic recall →** `list --query "<topic>"` at the default 30 days; widen with
+   `--days 0` if nothing turns up. Note `CHAT` vs `CLI`; pick the top hit or ask
+   which to open.
+4. **Deep-dive →** `show --session <id>` (add `--query` to jump to relevant
+   turns) and summarize what that session covered.
 
-The `list`/`show` commands cover ~80% of recall needs. For richer queries —
-custom joins, aggregations, grouping by day/repo, file-graph queries, dumping
-columns — open the `.db` files **read-only** and write SQL. Both stores share
-the same schema (`sessions`, `turns`, `session_files`, `session_refs`, FTS5
-`search_index`).
+## Going beyond the script — direct SQL (escape hatch)
+
+The three commands above cover ~80% of recall needs — reach for SQL only for
+queries they can't express (custom joins, file-graph lookups, ad-hoc grouping).
+Both stores share the same schema: `sessions`, `turns`, `session_files`,
+`session_refs`, FTS5 `search_index`.
 
 > **Never write to these files.** Engram's scheduled task owns the Chat DB and
 > Copilot CLI owns the CLI DB. Always open with `?mode=ro` (Python) or
@@ -196,18 +212,6 @@ sqlite3 -readonly "$env:USERPROFILE\.copilot\session-store-vscode-chat.db" ".sch
 sqlite3 -readonly "$env:USERPROFILE\.copilot\session-store-vscode-chat.db" `
   "SELECT name FROM sqlite_master WHERE type='table';"
 ```
-
-## Recommended flow
-
-1. Run `list` with the user's topic. Start with the default 30-day window;
-   widen with `--days 0` if nothing turns up. For "what did I do today / this
-   week?", drop `--query` and use `--today` or `--days N` to browse by time.
-2. Present the ranked matches (note `CHAT` vs `CLI`). Ask which to open, or
-   pick the top hit.
-3. Run `show --session <id>` (optionally `--query` to jump to relevant turns)
-   and summarize what that session covered.
-4. For "how much / how many?" questions (counts per day, repo, or source), use
-   `stats` instead of `list` — it ignores `--limit` and returns true totals.
 
 ## Notes
 
