@@ -163,8 +163,11 @@ main { position: relative; z-index: 1; }
   color: var(--fg); margin: 0; padding: 0;
   overflow-x: auto; white-space: nowrap;
 }
+.hero-install + .hero-install { margin-top: 12px; }
 .prompt { color: var(--accent); margin-right: 8px; }
+.prompt-chat { color: var(--accent-2); margin-right: 8px; }
 .highlight { color: var(--highlight); }
+.muted { color: var(--fg-faint); }
 
 section {
   max-width: 1100px; margin: 0 auto; padding: 80px 32px;
@@ -303,8 +306,15 @@ footer a:hover { color: var(--fg); }
   <p class="hero-proof">Pure Python stdlib. Zero dependencies. Read-only with respect to VS Code. Sibling project to <a href="https://github.com/aasis21/anya">Anya</a>.</p>
 
   <div class="hero-install">
-    <div class="hero-install-label">Install — one line · PowerShell</div>
+    <div class="hero-install-label">1 · Install — one line · PowerShell</div>
     <pre class="hero-install-cmd"><span class="prompt">&gt;</span> irm <span class="highlight">https://raw.githubusercontent.com/aasis21/engram/main/install.ps1</span> | iex</pre>
+  </div>
+
+  <div class="hero-install">
+    <div class="hero-install-label">2 · Use it — ask any Copilot surface (VS Code Chat, Copilot CLI, Anya)</div>
+    <pre class="hero-install-cmd"><span class="prompt-chat">@</span> <span class="muted">"which chat did I discuss</span> <span class="highlight">service bus retry</span> <span class="muted">in?"</span></pre>
+    <pre class="hero-install-cmd"><span class="prompt-chat">@</span> <span class="muted">"search my Copilot history for</span> <span class="highlight">net8 upgrade</span><span class="muted">"</span></pre>
+    <pre class="hero-install-cmd"><span class="prompt-chat">@</span> <span class="muted">"show me what I did in session</span> <span class="highlight">769739be</span><span class="muted">"</span></pre>
   </div>
 </section>
 
