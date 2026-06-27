@@ -195,7 +195,7 @@ h2 em { font-style: italic; font-variation-settings: "SOFT" 100, "WONK" 1; color
 
 .feature-grid {
   list-style: none; padding: 0; margin: 0;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 20px;
 }
 .feature-grid li {
@@ -348,23 +348,13 @@ footer a:hover { color: var(--fg); }
     </li>
     <li>
       <span class="feat-num">05</span>
-      <h3>Read-only of VS Code.</h3>
-      <p>Engram only reads chat files. Your editor state is never modified.</p>
+      <h3>Read-only & local.</h3>
+      <p>Engram only reads VS Code's chat files; your editor state is never touched. The database lives entirely under <code>~\.copilot\</code>. Nothing uploaded, no telemetry.</p>
     </li>
     <li>
       <span class="feat-num">06</span>
-      <h3>Zero dependencies.</h3>
-      <p>Pure Python standard library. No <code>pip install</code>, no virtualenv, nothing extra on your PATH.</p>
-    </li>
-    <li>
-      <span class="feat-num">07</span>
       <h3>Copilot-skill bundled.</h3>
-      <p>The installer also drops a user-level Copilot <em>skill</em> at <code>~\.copilot\skills\engram\</code> — auto-discovered by Copilot CLI, VS Code Chat, and Anya. Ask "which chat did I discuss X in" and the agent searches both Chat and CLI stores in one go.</p>
-    </li>
-    <li>
-      <span class="feat-num">08</span>
-      <h3>Local & private.</h3>
-      <p>The database lives entirely on your machine under <code>~\.copilot\</code>. Nothing is uploaded, no telemetry, no network. Your chats stay yours.</p>
+      <p>The installer drops a user-level skill at <code>~\.copilot\skills\engram\</code> — auto-discovered by Copilot CLI, VS Code Chat, and Anya. Ask <em>"which chat did I discuss X in"</em> and the agent searches both Chat and CLI stores in one go.</p>
     </li>
   </ol>
 </section>
