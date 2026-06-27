@@ -95,10 +95,15 @@ $engram = Join-Path $InstallDir 'engram.py'
 
 # --- Initial index --------------------------------------------------------
 if (-not $NoInitialIndex) {
-    Write-Host "`nRunning initial full index (this can take a few minutes on first run)..." -ForegroundColor Yellow
-    & $python $engram index --full
+    $dbExists = Test-Path (Join-Path $env:USERPROFILE '.copilot\session-store-vscode-chat.db')
+    if ($dbExists) {
+        Write-Host "`nExisting database detected - running incremental index (only files changed since last run)..." -ForegroundColor Yellow
+    } else {
+        Write-Host "`nNo database yet - running initial full index (this can take a few minutes on first run)..." -ForegroundColor Yellow
+    }
+    & $python $engram index
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Initial index exited with code $LASTEXITCODE. The scheduled task will retry."
+        Write-Warning "Index exited with code $LASTEXITCODE. If the database is corrupt, run: .\uninstall.ps1 -RemoveData and re-install."
     }
 }
 
