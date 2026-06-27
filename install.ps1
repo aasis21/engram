@@ -104,9 +104,13 @@ if (-not $NoSchedule) {
     $action = New-ScheduledTaskAction -Execute $pythonw `
         -Argument "`"$engram`" index" -WorkingDirectory $InstallDir
 
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(1) `
-        -RepetitionInterval (New-TimeSpan -Minutes $Interval) `
-        -RepetitionDuration ([TimeSpan]::FromDays(3650))
+    # Anchor once at install time, then repeat every N minutes indefinitely.
+    # Assigning .Repetition from a helper trigger (instead of passing
+    # -RepetitionDuration) yields an open-ended schedule, so Task Scheduler
+    # shows "repeat every N minutes indefinitely" and it starts running now.
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date)
+    $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At '00:00' `
+        -RepetitionInterval (New-TimeSpan -Minutes $Interval)).Repetition
 
     $settings = New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable `
         -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -117,7 +121,10 @@ if (-not $NoSchedule) {
 
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
         -Settings $settings -Principal $principal `
-        -Description "Engram: incrementally index VS Code Copilot Chat sessions into SQLite." `
+        -Description ("Engram - indexes your VS Code Copilot Chat history into a local SQLite database " +
+            "(~/.copilot/session-store-vscode-chat.db) so you can full-text search past conversations. " +
+            "Runs incrementally every $Interval minutes (only files changed since the last run). " +
+            "Source: $InstallDir | https://github.com/aasis21/engram") `
         -Force | Out-Null
 
     Write-Host "Task registered. Kicking off one run now..."
