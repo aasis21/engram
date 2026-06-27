@@ -85,6 +85,31 @@ python engram.py query "<text>"   # full-text search across all indexed chats
 `query` ranks results with FTS5 and prints the session title, repository, date,
 session id, and a highlighted snippet.
 
+## Copilot skill (bundled)
+
+The installer also drops a user-level Copilot **skill** at
+`~\.copilot\skills\engram\` — auto-discovered by Copilot CLI, VS Code Copilot
+Chat, and [Anya](https://github.com/aasis21/anya). It teaches the agent to
+search **both** local Copilot session stores in one go and tag each hit as
+`CHAT` or `CLI`:
+
+| Store | File | Built by |
+|-------|------|----------|
+| `chat` | `~\.copilot\session-store-vscode-chat.db` | Engram |
+| `cli` | `~\.copilot\session-store.db` | Copilot CLI |
+
+Triggers on: *"which chat did I discuss X in"*, *"search my Copilot history"*,
+*"find the session about \<topic\>"*, *"show me what I did in session \<id\>"*.
+
+Powered by `skills/engram/scripts/engram_search.py` — Python 3 stdlib, read-only,
+FTS5 + regex + `--days`/`--repo` filters, `--json` output, and a `show`
+subcommand to deep-dive a session by id prefix. Try it directly:
+
+```powershell
+python "$env:USERPROFILE\.copilot\skills\engram\scripts\engram_search.py" `
+    list --query "service bus retry"
+```
+
 ## How incremental indexing works
 
 The database tracks its own state in an `index_state` table:

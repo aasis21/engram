@@ -266,6 +266,7 @@ footer a:hover { color: var(--fg); }
   <nav class="nav-links">
     <a href="#what">what</a>
     <a href="#install">install</a>
+    <a href="#skill">skill</a>
     <a href="#query">query</a>
     <a href="#schema">schema</a>
     <a href="https://github.com/aasis21/engram" target="_blank" rel="noopener">github ↗</a>
@@ -345,6 +346,11 @@ footer a:hover { color: var(--fg); }
       <h3>Zero dependencies.</h3>
       <p>Pure Python standard library. No <code>pip install</code>, no virtualenv, nothing extra on your PATH.</p>
     </li>
+    <li>
+      <span class="feat-num">07</span>
+      <h3>Copilot-skill bundled.</h3>
+      <p>The installer also drops a user-level Copilot <em>skill</em> at <code>~\.copilot\skills\engram\</code> — auto-discovered by Copilot CLI, VS Code Chat, and Anya. Ask "which chat did I discuss X in" and the agent searches both Chat and CLI stores in one go.</p>
+    </li>
   </ol>
 </section>
 
@@ -366,9 +372,29 @@ irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
 .\uninstall.ps1 -RemoveData  <span class="comment"># also delete the DB</span></pre>
 </section>
 
+<section id="skill">
+  <header class="section-head">
+    <span class="kicker">03 · Copilot skill</span>
+    <h2>Teach your agent <em>to remember.</em></h2>
+    <p class="section-lede">Installs a user-level Copilot skill to <code>~\.copilot\skills\engram\</code> — auto-discovered by Copilot CLI, VS Code Copilot Chat, and <a href="https://github.com/aasis21/anya" style="color:var(--accent)">Anya</a>. Searches both stores in one pass and tags every hit as <code>CHAT</code> or <code>CLI</code>.</p>
+  </header>
+
+  <pre class="code-block"><span class="comment"># Two stores, one search — Chat (Engram-built) and CLI (Copilot-CLI-built)</span>
+python "$env:USERPROFILE\.copilot\skills\engram\scripts\engram_search.py" `
+    list --query <span class="str">"net8 upgrade"</span>
+
+<span class="comment"># Filter to one store, restrict by repo, widen the window, get JSON</span>
+... list --query <span class="str">"SNAT OR socket"</span> --source chat -w ModernOrder --days 90 --json
+
+<span class="comment"># Deep-dive a session by id or 8-char prefix</span>
+... show --session 769739be --query upgrade</pre>
+
+  <p class="section-lede" style="margin-top:24px;">Triggers on phrases like <em>"which chat did I discuss X in"</em>, <em>"search my Copilot history"</em>, <em>"find the session about &lt;topic&gt;"</em>, <em>"show me what I did in session &lt;id&gt;"</em>. Read-only, FTS5 + regex, stdlib-only.</p>
+</section>
+
 <section id="query">
   <header class="section-head">
-    <span class="kicker">03 · Query</span>
+    <span class="kicker">04 · Query</span>
     <h2>Plain Python, or <em>plain SQL.</em></h2>
     <p class="section-lede">Use the bundled CLI for full-text search, or open the database with any SQLite tool and write your own queries.</p>
   </header>
@@ -385,7 +411,7 @@ sqlite3 <span class="str">"$env:USERPROFILE\.copilot\session-store-vscode-chat.d
 
 <section id="schema">
   <header class="section-head">
-    <span class="kicker">04 · Schema</span>
+    <span class="kicker">05 · Schema</span>
     <h2><em>Familiar</em> shape.</h2>
     <p class="section-lede">Mirrors Copilot CLI's <code>session-store.db</code>, plus state and audit tables for incremental indexing.</p>
   </header>
