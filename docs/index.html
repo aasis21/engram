@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Engram — Your VS Code Copilot Chat, made searchable</title>
+<meta name="description" content="Engram turns thousands of VS Code Copilot Chat session files into a single, queryable SQLite database — with full-text search, incremental indexing, and zero dependencies." />
+<meta property="og:title" content="Engram" />
+<meta property="og:description" content="Index your VS Code Copilot Chat history into a local SQLite database. Searchable with SQL and FTS5." />
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="#0a0c10" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('engram-theme');
+      var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      var theme = saved || (prefersLight ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  })();
+</script>
+
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg-elev: #11141a;
+  --fg: #e6edf3;
+  --fg-dim: #9aa4b2;
+  --fg-faint: #5c6370;
+  --accent: #f5a97f;
+  --accent-2: #a6e3a1;
+  --border: #1f242c;
+  --code-bg: #0f1218;
+  --highlight: #f9e2af;
+}
+[data-theme="light"] {
+  --bg: #faf7f2;
+  --bg-elev: #ffffff;
+  --fg: #1a1d23;
+  --fg-dim: #5a6270;
+  --fg-faint: #8a909a;
+  --accent: #c9572b;
+  --accent-2: #2d7a3e;
+  --border: #e6e1d8;
+  --code-bg: #f0ebe2;
+  --highlight: #b8860b;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "ss02";
+}
+.grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: radial-gradient(circle at 1px 1px, var(--fg-faint) 0.5px, transparent 0);
+  background-size: 24px 24px;
+  opacity: 0.04;
+}
+.nav {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 1100px; margin: 0 auto; padding: 28px 32px;
+  position: relative; z-index: 2;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  text-decoration: none; color: var(--fg);
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 22px;
+}
+.brand-mark {
+  display: inline-grid; place-items: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--accent); color: var(--bg);
+  font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 16px;
+}
+.nav-links { display: flex; gap: 24px; align-items: center; }
+.nav-links a {
+  color: var(--fg-dim); text-decoration: none;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  transition: color 0.15s;
+}
+.nav-links a:hover { color: var(--fg); }
+.theme-toggle {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--fg-dim); width: 32px; height: 32px;
+  border-radius: 8px; cursor: pointer;
+  display: inline-grid; place-items: center;
+  transition: all 0.15s;
+}
+.theme-toggle:hover { color: var(--fg); border-color: var(--fg-dim); }
+[data-theme="dark"] .ic-sun { display: block; }
+[data-theme="dark"] .ic-moon { display: none; }
+[data-theme="light"] .ic-sun { display: none; }
+[data-theme="light"] .ic-moon { display: block; }
+
+main { position: relative; z-index: 1; }
+
+.hero {
+  max-width: 1100px; margin: 0 auto; padding: 80px 32px 60px;
+}
+.hero-title {
+  font-size: clamp(48px, 8vw, 88px);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+  margin: 0 0 32px;
+}
+.hero-title .line { display: block; }
+.hero-title em {
+  font-style: italic;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+  color: var(--fg);
+}
+.hero-title .accent { color: var(--accent); }
+.hero-sub {
+  font-size: 20px; line-height: 1.5;
+  color: var(--fg-dim);
+  max-width: 640px;
+  margin: 0 0 32px;
+}
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
+.btn {
+  display: inline-block; padding: 12px 22px;
+  font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500;
+  text-decoration: none; border-radius: 10px;
+  transition: all 0.15s; border: 1px solid transparent;
+  cursor: pointer;
+}
+.btn-primary { background: var(--accent); color: var(--bg); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px -8px var(--accent); }
+.btn-ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+.btn-ghost:hover { border-color: var(--fg-dim); }
+
+.hero-proof {
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  color: var(--fg-faint); margin: 0 0 24px;
+}
+.hero-proof a { color: var(--accent); }
+.hero-install {
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 20px;
+  max-width: 760px;
+}
+.hero-install-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--fg-faint); margin-bottom: 8px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.hero-install-cmd {
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  color: var(--fg); margin: 0; padding: 0;
+  overflow-x: auto; white-space: nowrap;
+}
+.prompt { color: var(--accent); margin-right: 8px; }
+.highlight { color: var(--highlight); }
+
+section {
+  max-width: 1100px; margin: 0 auto; padding: 80px 32px;
+  position: relative; z-index: 1;
+}
+.section-head { margin-bottom: 56px; max-width: 720px; }
+.kicker {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em;
+  margin-bottom: 16px;
+}
+h2 {
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1.08; font-weight: 400;
+  letter-spacing: -0.015em; margin: 0 0 20px;
+}
+h2 em { font-style: italic; font-variation-settings: "SOFT" 100, "WONK" 1; color: var(--accent); }
+.section-lede { font-size: 19px; color: var(--fg-dim); margin: 0; }
+.section-lede code, p code {
+  background: var(--code-bg); padding: 2px 6px;
+  border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em; color: var(--accent);
+}
+
+.feature-grid {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+.feature-grid li {
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 14px; padding: 28px;
+}
+.feat-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--fg-faint); margin-bottom: 16px; display: block;
+}
+.feature-grid h3 {
+  font-size: 22px; font-weight: 500; margin: 0 0 10px;
+  letter-spacing: -0.01em;
+}
+.feature-grid p { color: var(--fg-dim); font-size: 16px; margin: 0; }
+
+.code-block {
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px 24px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13.5px;
+  line-height: 1.7; overflow-x: auto;
+  color: var(--fg); margin: 0;
+}
+.code-block .comment { color: var(--fg-faint); }
+.code-block .kw { color: var(--accent-2); }
+.code-block .str { color: var(--highlight); }
+
+.schema {
+  width: 100%; border-collapse: collapse;
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+}
+.schema th, .schema td {
+  text-align: left; padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.schema th { color: var(--fg-faint); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.schema td:first-child { color: var(--accent); }
+.schema td:last-child { color: var(--fg-dim); font-family: 'Fraunces', serif; font-size: 16px; }
+
+footer {
+  max-width: 1100px; margin: 0 auto; padding: 60px 32px 80px;
+  border-top: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 16px;
+}
+footer p {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--fg-faint); margin: 0;
+}
+footer a { color: var(--fg-dim); text-decoration: none; margin-left: 16px; }
+footer a:hover { color: var(--fg); }
+
+@media (max-width: 640px) {
+  .nav { padding: 20px; }
+  .nav-links { gap: 14px; }
+  .nav-links a { font-size: 12px; }
+  .hero { padding: 40px 20px; }
+  section { padding: 60px 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+
+<header class="nav">
+  <a class="brand" href="#top" aria-label="Engram">
+    <span class="brand-mark">E</span>
+    <span class="brand-word">Engram</span>
+  </a>
+  <nav class="nav-links">
+    <a href="#what">what</a>
+    <a href="#install">install</a>
+    <a href="#query">query</a>
+    <a href="#schema">schema</a>
+    <a href="https://github.com/aasis21/engram" target="_blank" rel="noopener">github ↗</a>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+      <svg class="ic-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+      </svg>
+      <svg class="ic-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+  </nav>
+</header>
+
+<main id="top">
+
+<section class="hero">
+  <h1 class="hero-title">
+    <span class="line"><em>The memory</em></span>
+    <span class="line">your Copilot</span>
+    <span class="line">chats <span class="accent">leave behind.</span></span>
+  </h1>
+
+  <p class="hero-sub">
+    VS Code writes thousands of Copilot Chat session files to disk — write-only, hard to search, scattered across workspaces. Engram turns that pile into one SQLite database you can query with SQL and full-text search.
+  </p>
+
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="#install">Install now</a>
+    <a class="btn btn-ghost" href="https://github.com/aasis21/engram" target="_blank" rel="noopener">View on GitHub</a>
+  </div>
+
+  <p class="hero-proof">Pure Python stdlib. Zero dependencies. Read-only with respect to VS Code. Sibling project to <a href="https://github.com/aasis21/anya">Anya</a>.</p>
+
+  <div class="hero-install">
+    <div class="hero-install-label">Install — one line · PowerShell</div>
+    <pre class="hero-install-cmd"><span class="prompt">&gt;</span> irm <span class="highlight">https://raw.githubusercontent.com/aasis21/engram/main/install.ps1</span> | iex</pre>
+  </div>
+</section>
+
+<section id="what">
+  <header class="section-head">
+    <span class="kicker">01 · What it does</span>
+    <h2>Every chat, every workspace,<br/>in <em>one</em> queryable place.</h2>
+    <p class="section-lede">VS Code stores chat sessions per-workspace under <code>%APPDATA%\Code\User\workspaceStorage\&lt;hash&gt;\chatSessions\</code>. Thousands of files, multiple formats, many GB. Engram consolidates everything into one local SQLite DB.</p>
+  </header>
+
+  <ol class="feature-grid">
+    <li>
+      <span class="feat-num">01</span>
+      <h3>Full-text search.</h3>
+      <p>FTS5 across user prompts and assistant responses, ranked by relevance with highlighted snippets.</p>
+    </li>
+    <li>
+      <span class="feat-num">02</span>
+      <h3>Incremental indexing.</h3>
+      <p>A watermark tracks the newest <code>mtime</code> seen. Subsequent runs reparse only the files that changed — typically a handful, in well under a second.</p>
+    </li>
+    <li>
+      <span class="feat-num">03</span>
+      <h3>Schema-compatible with Copilot CLI.</h3>
+      <p>Same tables as <code>session-store.db</code> — <code>sessions</code>, <code>turns</code>, <code>session_files</code>, <code>session_refs</code> — so any tool that reads one can read the other.</p>
+    </li>
+    <li>
+      <span class="feat-num">04</span>
+      <h3>Hidden, hands-off.</h3>
+      <p>A Windows Scheduled Task runs every 10 minutes (configurable) under <code>pythonw.exe</code>. No console windows, no surprises.</p>
+    </li>
+    <li>
+      <span class="feat-num">05</span>
+      <h3>Read-only of VS Code.</h3>
+      <p>Engram only reads chat files. Your editor state is never modified.</p>
+    </li>
+    <li>
+      <span class="feat-num">06</span>
+      <h3>Zero dependencies.</h3>
+      <p>Pure Python standard library. No <code>pip install</code>, no virtualenv, nothing extra on your PATH.</p>
+    </li>
+  </ol>
+</section>
+
+<section id="install">
+  <header class="section-head">
+    <span class="kicker">02 · Install</span>
+    <h2>One line. <em>That's it.</em></h2>
+    <p class="section-lede">Requires Python 3.8+ and git on PATH. The bootstrap clones the repo to <code>~\engram</code>, copies the indexer to <code>%LOCALAPPDATA%\Engram</code>, runs the initial full index, and registers the scheduled task.</p>
+  </header>
+
+  <pre class="code-block"><span class="comment"># PowerShell</span>
+irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
+
+<span class="comment"># With arguments (faster polling, custom location)</span>
+&amp; ([scriptblock]::Create((irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1))) -Interval 5
+
+<span class="comment"># Uninstall (keeps DB)</span>
+.\uninstall.ps1
+.\uninstall.ps1 -RemoveData  <span class="comment"># also delete the DB</span></pre>
+</section>
+
+<section id="query">
+  <header class="section-head">
+    <span class="kicker">03 · Query</span>
+    <h2>Plain Python, or <em>plain SQL.</em></h2>
+    <p class="section-lede">Use the bundled CLI for full-text search, or open the database with any SQLite tool and write your own queries.</p>
+  </header>
+
+  <pre class="code-block"><span class="comment"># CLI — ranked FTS5 results with highlighted snippets</span>
+python engram.py query <span class="str">"service bus retry"</span>
+python engram.py status                    <span class="comment"># last run, totals, watermark</span>
+
+<span class="comment"># Or hit the DB directly</span>
+sqlite3 <span class="str">"$env:USERPROFILE\.copilot\session-store-vscode-chat.db"</span> `
+  <span class="str">"SELECT repository, COUNT(*) FROM sessions
+   GROUP BY repository ORDER BY 2 DESC LIMIT 15;"</span></pre>
+</section>
+
+<section id="schema">
+  <header class="section-head">
+    <span class="kicker">04 · Schema</span>
+    <h2><em>Familiar</em> shape.</h2>
+    <p class="section-lede">Mirrors Copilot CLI's <code>session-store.db</code>, plus state and audit tables for incremental indexing.</p>
+  </header>
+
+  <table class="schema">
+    <thead>
+      <tr><th>Table</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>sessions</td><td>One row per chat session — id, repository, cwd, summary, timestamps.</td></tr>
+      <tr><td>turns</td><td>One row per request/response turn within a session.</td></tr>
+      <tr><td>session_files</td><td>Files referenced or edited inside a session.</td></tr>
+      <tr><td>session_refs</td><td>Tool invocations and other refs.</td></tr>
+      <tr><td>search_index</td><td>FTS5 virtual table over user + assistant text.</td></tr>
+      <tr><td>index_state</td><td>Schema version, watermark, totals, last-run info.</td></tr>
+      <tr><td>index_runs</td><td>Per-run audit log: scanned, changed, indexed, failed, duration.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  <p>© 2026 · <a href="https://github.com/aasis21/engram" target="_blank" rel="noopener">github.com/aasis21/engram</a> · MIT</p>
+  <p>
+    Made by <a href="https://github.com/aasis21" target="_blank" rel="noopener">@aasis21</a>
+    <a href="https://aasis21.github.io/Anya/" target="_blank" rel="noopener">Sibling: Anya ↗</a>
+  </p>
+</footer>
+
+<script>
+  const btn = document.getElementById('theme-toggle');
+  btn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('engram-theme', next); } catch (e) {}
+  });
+</script>
+
+</body>
+</html>
