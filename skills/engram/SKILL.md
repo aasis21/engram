@@ -71,7 +71,7 @@ python "$env:USERPROFILE\.copilot\skills\engram\scripts\engram_search.py" list -
 | `--repo`, `-w "<substr>"` | Keep only sessions whose location (repo/cwd/branch/file) contains the substring. |
 | `--today` | Only sessions updated **today** (local time). Overrides `--days`. |
 | `--days N` | Only sessions updated within N days (default `30`; `0` = all history). |
-| `--limit N` | Max results (default 25). |
+| `--limit N` | Max results (default 1000). |
 | `--json` | Machine-readable output. |
 
 Examples:

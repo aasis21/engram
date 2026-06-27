@@ -185,7 +185,7 @@ def search_store(source, path, query, and_terms, regex, cutoff, repo, limit):
 
     if has_query and not match_counts:
         con.close()
-        return results
+        return results, 0
 
     # 2) Hydrate session metadata.
     sel = ["id", "repository", "branch", "summary", "created_at", "updated_at"]
@@ -246,8 +246,22 @@ def search_store(source, path, query, and_terms, regex, cutoff, repo, limit):
                 "opened": clean(op[0] if op else "", 120),
             }
         )
+
+    # True total in the window, before the display limit.
+    # Query mode and repo-filtered browse already materialize the full set,
+    # so len(results) is exact. Only browse-without-repo pushes a SQL LIMIT,
+    # so there we add a single cheap COUNT(*) (no hydration, no N+1).
+    if not has_query and not repo:
+        csql = "SELECT COUNT(*) FROM sessions"
+        cparams = []
+        if cutoff:
+            csql += " WHERE updated_at >= ?"
+            cparams.append(cutoff)
+        total = con.execute(csql, tuple(cparams)).fetchone()[0]
+    else:
+        total = len(results)
     con.close()
-    return results
+    return results, total
 
 
 def cmd_list(args):
@@ -261,11 +275,14 @@ def cmd_list(args):
     cutoff = today_cutoff_iso() if args.today else cutoff_iso(args.days)
 
     merged = []
+    grand_total = 0
     for source, path in stores:
-        merged += search_store(
+        res, tot = search_store(
             source, path, args.query, args.and_, args.regex,
             cutoff, args.repo, args.limit,
         )
+        merged += res
+        grand_total += tot
     merged.sort(key=lambda r: r["time"], reverse=True)
     merged = merged[: args.limit]
 
@@ -296,9 +313,10 @@ def cmd_list(args):
         if r["opened"]:
             print(f"        opened: {r['opened']}")
         print()
-    if len(merged) >= args.limit:
-        print(f"(showing first {len(merged)} - limit reached; raise --limit "
-              f"or run `stats` for full totals)\n")
+    if grand_total > len(merged):
+        hidden = grand_total - len(merged)
+        print(f"(showing {len(merged)} of {grand_total} \u2014 {hidden} hidden. "
+              f"Raise --limit, or run `stats` for the breakdown.)\n")
     return 0
 
 
@@ -323,10 +341,11 @@ def cmd_stats(args):
     BIG = 10 ** 9  # stats counts the full matched set — never truncates
     rows = []
     for source, path in stores:
-        rows += search_store(
+        res, _ = search_store(
             source, path, args.query, args.and_, args.regex,
             cutoff, args.repo, BIG,
         )
+        rows += res
 
     total_sessions = len(rows)
     total_turns = sum(r["turns"] for r in rows)
@@ -491,7 +510,7 @@ def build_parser():
     pl.add_argument("--today", action="store_true",
                     help="Only sessions updated today (local time). Overrides --days.")
     pl.add_argument("--days", type=int, default=30, help="Only sessions updated within N days (default 30; 0 = all).")
-    pl.add_argument("--limit", type=int, default=25)
+    pl.add_argument("--limit", type=int, default=1000)
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_list)
 
