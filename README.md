@@ -25,16 +25,17 @@ Engram consolidates all of it into one DB you can `SELECT` from.
 
 ## Quick start
 
-Requires **Python 3.8+** on PATH. From this folder:
+Requires **Python 3.8+** and **git** on PATH. Run from any PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
 ```
 
 That will:
-1. Copy Engram to `%LOCALAPPDATA%\Engram`.
-2. Run an initial full index (a few minutes the first time).
-3. Register a hidden scheduled task **"Engram Indexer"** that re-indexes every 10 minutes.
+1. Clone the repo to `~\engram`.
+2. Copy Engram to `%LOCALAPPDATA%\Engram`.
+3. Run an initial full index (a few minutes the first time).
+4. Register a hidden scheduled task **"Engram Indexer"** that re-indexes every 10 minutes.
 
 Then query anytime:
 
@@ -48,11 +49,19 @@ python "%LOCALAPPDATA%\Engram\engram.py" status
 
 ### Install options
 
+Pass arguments to the bootstrap installer:
+
 ```powershell
-.\install.ps1 -Interval 5                 # run every 5 minutes
-.\install.ps1 -InstallDir D:\Tools\Engram # custom location
-.\install.ps1 -NoSchedule                 # install + index, no task
-.\install.ps1 -NoInitialIndex             # register task, skip first index
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1))) -Interval 5
+```
+
+Or, from a local clone, call `setup.ps1` directly:
+
+```powershell
+.\setup.ps1 -Interval 5                 # run every 5 minutes
+.\setup.ps1 -InstallDir D:\Tools\Engram # custom location
+.\setup.ps1 -NoSchedule                 # install + index, no task
+.\setup.ps1 -NoInitialIndex             # register task, skip first index
 ```
 
 ### Uninstall

@@ -1,40 +1,44 @@
 <#
 .SYNOPSIS
-    Install Engram - the VS Code Copilot Chat -> SQLite indexer - and register a
-    Windows Scheduled Task that re-indexes incrementally every few minutes.
+  One-line bootstrap installer for Engram.
 
 .DESCRIPTION
-    One-shot installer. Copies the Engram files to a stable location
-    (%LOCALAPPDATA%\Engram by default), runs an initial full index, and registers
-    a hidden scheduled task that runs `engram.py index` on an interval.
+  Clones (or updates) the Engram repo into $InstallDir, then runs setup.ps1
+  to install Engram to %LOCALAPPDATA%\Engram, run an initial full index, and
+  register the scheduled task.
 
-    Re-running is safe and idempotent: files are refreshed, the task is recreated,
-    and the existing database is reused (its watermark means the next run is fast).
+  Designed to be run with:
+    irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
+
+  With arguments:
+    & ([scriptblock]::Create((irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1))) -Interval 5
+
+.PARAMETER CheckoutDir
+  Where to clone the repo. Defaults to ~/engram.
+
+.PARAMETER Branch
+  Git branch to check out. Defaults to main.
 
 .PARAMETER InstallDir
-    Where to install Engram. Default: %LOCALAPPDATA%\Engram
+  Forwarded to setup.ps1. Where to install Engram. Default: %LOCALAPPDATA%\Engram
 
 .PARAMETER Interval
-    Minutes between indexing runs. Default: 10
+  Forwarded to setup.ps1. Minutes between indexing runs. Default: 10
 
 .PARAMETER TaskName
-    Scheduled task name. Default: "Engram Indexer"
+  Forwarded to setup.ps1. Scheduled task name. Default: "Engram Indexer"
 
 .PARAMETER NoSchedule
-    Install + initial index only; do NOT register the scheduled task.
+  Forwarded to setup.ps1. Install + initial index only; do NOT register the scheduled task.
 
 .PARAMETER NoInitialIndex
-    Skip the initial full index (the task will pick it up on its first run).
-
-.EXAMPLE
-    powershell -ExecutionPolicy Bypass -File .\install.ps1
-
-.EXAMPLE
-    .\install.ps1 -Interval 5 -InstallDir D:\Tools\Engram
+  Forwarded to setup.ps1. Skip the initial full index.
 #>
 [CmdletBinding()]
 param(
-    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Engram'),
+    [string]$CheckoutDir = (Join-Path $HOME 'engram'),
+    [string]$Branch = 'main',
+    [string]$InstallDir,
     [int]$Interval = 10,
     [string]$TaskName = 'Engram Indexer',
     [switch]$NoSchedule,
@@ -42,105 +46,47 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo = 'https://github.com/aasis21/engram.git'
 
-function Find-Python {
-    # Prefer a real python.exe so we can derive pythonw.exe beside it.
-    $cmd = Get-Command python.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $cmd) {
-        $cmd = Get-Command python -ErrorAction SilentlyContinue | Select-Object -First 1
+function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
+function Ok($msg)   { Write-Host "  OK  $msg" -ForegroundColor Green }
+
+Step 'Checking prerequisites'
+foreach ($cmd in @('git', 'python')) {
+    if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
+        if ($cmd -eq 'python' -and (Get-Command py.exe -ErrorAction SilentlyContinue)) {
+            Ok 'python (via py launcher)'
+            continue
+        }
+        throw "$cmd not found on PATH. Install it first."
     }
-    if ($cmd) { return $cmd.Source }
-    # Fall back to the py launcher.
-    $py = Get-Command py.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($py) {
-        $resolved = & $py.Source -c "import sys;print(sys.executable)" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $resolved) { return $resolved.Trim() }
+    Ok "$cmd available"
+}
+
+if (Test-Path (Join-Path $CheckoutDir '.git')) {
+    Step "Updating existing checkout at $CheckoutDir"
+    Push-Location $CheckoutDir
+    try {
+        git fetch --quiet origin
+        git checkout --quiet $Branch
+        git pull --ff-only --quiet origin $Branch
+        Ok "synced to origin/$Branch"
+    } finally { Pop-Location }
+} else {
+    Step "Cloning $repo into $CheckoutDir"
+    git clone --quiet --branch $Branch $repo $CheckoutDir
+    Ok 'cloned'
+}
+
+Step 'Running setup.ps1'
+Push-Location $CheckoutDir
+try {
+    $setupArgs = @{
+        Interval = $Interval
+        TaskName = $TaskName
     }
-    return $null
-}
-
-Write-Host "== Engram installer ==" -ForegroundColor Cyan
-
-$python = Find-Python
-if (-not $python) {
-    Write-Error "Python 3 was not found on PATH. Install Python 3.8+ from https://python.org and re-run."
-    exit 1
-}
-$pyDir   = Split-Path -Parent $python
-$pythonw = Join-Path $pyDir 'pythonw.exe'
-if (-not (Test-Path $pythonw)) { $pythonw = $python }  # fall back to console python
-Write-Host "Python   : $python"
-Write-Host "Pythonw  : $pythonw"
-
-# --- Copy files -----------------------------------------------------------
-New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-$files = @('engram.py', 'config.json', 'run.cmd', 'README.md')
-foreach ($f in $files) {
-    $src = Join-Path $here $f
-    if (Test-Path $src) {
-        Copy-Item $src -Destination $InstallDir -Force
-        Write-Host "Copied   : $f"
-    } elseif ($f -eq 'engram.py') {
-        Write-Error "Required file missing next to installer: $f"
-        exit 1
-    }
-}
-$engram = Join-Path $InstallDir 'engram.py'
-
-# --- Initial index --------------------------------------------------------
-if (-not $NoInitialIndex) {
-    Write-Host "`nRunning initial full index (this can take a few minutes on first run)..." -ForegroundColor Yellow
-    & $python $engram index --full
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Initial index exited with code $LASTEXITCODE. The scheduled task will retry."
-    }
-}
-
-# --- Scheduled task -------------------------------------------------------
-if (-not $NoSchedule) {
-    Write-Host "`nRegistering scheduled task '$TaskName' (every $Interval min, hidden)..." -ForegroundColor Yellow
-
-    $action = New-ScheduledTaskAction -Execute $pythonw `
-        -Argument "`"$engram`" index" -WorkingDirectory $InstallDir
-
-    # Anchor once at install time, then repeat every N minutes indefinitely.
-    # Assigning .Repetition from a helper trigger (instead of passing
-    # -RepetitionDuration) yields an open-ended schedule, so Task Scheduler
-    # shows "repeat every N minutes indefinitely" and it starts running now.
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date)
-    $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At '00:00' `
-        -RepetitionInterval (New-TimeSpan -Minutes $Interval)).Repetition
-
-    $settings = New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable `
-        -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-        -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)
-
-    $principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) `
-        -LogonType Interactive -RunLevel Limited
-
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
-        -Settings $settings -Principal $principal `
-        -Description ("Engram - indexes your VS Code Copilot Chat history into a local SQLite database " +
-            "(~/.copilot/session-store-vscode-chat.db) so you can full-text search past conversations. " +
-            "Runs incrementally every $Interval minutes (only files changed since the last run). " +
-            "Source: $InstallDir | https://github.com/aasis21/engram") `
-        -Force | Out-Null
-
-    Write-Host "Task registered. Kicking off one run now..."
-    Start-ScheduledTask -TaskName $TaskName
-}
-
-# --- Summary --------------------------------------------------------------
-Write-Host "`n== Done ==" -ForegroundColor Green
-& $python $engram status
-Write-Host ""
-Write-Host "Query your chats:" -ForegroundColor Cyan
-Write-Host "    python `"$engram`" query `"<search text>`""
-Write-Host "    python `"$engram`" status"
-if (-not $NoSchedule) {
-    Write-Host "Manage the task:" -ForegroundColor Cyan
-    Write-Host "    Get-ScheduledTask -TaskName '$TaskName'"
-    Write-Host "    .\uninstall.ps1            # remove task (keeps data)"
-    Write-Host "    .\uninstall.ps1 -RemoveData  # remove task + database"
-}
+    if ($PSBoundParameters.ContainsKey('InstallDir')) { $setupArgs.InstallDir = $InstallDir }
+    if ($NoSchedule)     { $setupArgs.NoSchedule = $true }
+    if ($NoInitialIndex) { $setupArgs.NoInitialIndex = $true }
+    & (Join-Path '.' 'setup.ps1') @setupArgs
+} finally { Pop-Location }
