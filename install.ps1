@@ -14,7 +14,8 @@
     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1))) -Interval 5
 
 .PARAMETER CheckoutDir
-  Where to clone the repo. Defaults to ~/engram.
+  Where to clone/update the repo bootstrap checkout.
+  Default: %LOCALAPPDATA%\Engram-src
 
 .PARAMETER Branch
   Git branch to check out. Defaults to main.
@@ -36,7 +37,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$CheckoutDir = (Join-Path $HOME 'engram'),
+    [string]$CheckoutDir = (Join-Path $env:LOCALAPPDATA 'Engram-src'),
     [string]$Branch = 'main',
     [string]$InstallDir,
     [int]$Interval = 10,
