@@ -41,6 +41,9 @@ Then query anytime:
 ```powershell
 python "%LOCALAPPDATA%\Engram\engram.py" query "service bus retry"
 python "%LOCALAPPDATA%\Engram\engram.py" status
+
+# Database lives next to Copilot CLI's session-store.db:
+#   %USERPROFILE%\.copilot\session-store-vscode-chat.db
 ```
 
 ### Install options
@@ -102,7 +105,7 @@ Mirrors Copilot CLI's `session-store.db`, plus state/audit tables:
 Open it with any SQLite tool:
 
 ```powershell
-sqlite3 "%LOCALAPPDATA%\Engram\engram.db" "SELECT repository, COUNT(*) FROM sessions GROUP BY repository ORDER BY 2 DESC LIMIT 15;"
+sqlite3 "%USERPROFILE%\.copilot\session-store-vscode-chat.db" "SELECT repository, COUNT(*) FROM sessions GROUP BY repository ORDER BY 2 DESC LIMIT 15;"
 ```
 
 ## Configuration
@@ -112,7 +115,7 @@ defaults. `null` means "use the built-in default".
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `db_path` | `%LOCALAPPDATA%\Engram\engram.db` | output database |
+| `db_path` | `%USERPROFILE%\.copilot\session-store-vscode-chat.db` | output database (next to Copilot CLI's `session-store.db`) |
 | `workspace_storage` | `%APPDATA%\Code\User\workspaceStorage` | VS Code chat root |
 | `extra_workspace_storage` | `[]` | extra roots to scan (e.g. VS Code Insiders) |
 | `max_file_mb` | `120` | skip files larger than this (memory safety) |

@@ -49,12 +49,13 @@ DEFAULT_ASSISTANT_TRUNC = 5000
 
 def default_config() -> dict:
     appdata = os.environ.get("APPDATA", "")
-    local = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    userprofile = os.environ.get("USERPROFILE", os.path.expanduser("~"))
     return {
         # Where VS Code stores per-workspace chat sessions.
         "workspace_storage": os.path.join(appdata, "Code", "User", "workspaceStorage"),
-        # Output database.
-        "db_path": os.path.join(local, "Engram", "engram.db"),
+        # Output database. Lives next to Copilot CLI's session-store.db so both
+        # session stores sit side by side under ~/.copilot.
+        "db_path": os.path.join(userprofile, ".copilot", "session-store-vscode-chat.db"),
         # Skip files larger than this (memory safety for runaway agent logs).
         "max_file_mb": 120,
         # Truncation caps for stored text.
