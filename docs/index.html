@@ -311,10 +311,10 @@ footer a:hover { color: var(--fg); }
   </div>
 
   <div class="hero-install">
-    <div class="hero-install-label">2 · Use it — ask any Copilot surface (VS Code Chat, Copilot CLI, Anya)</div>
-    <pre class="hero-install-cmd"><span class="prompt-chat">@</span> <span class="muted">"which chat did I discuss</span> <span class="highlight">service bus retry</span> <span class="muted">in?"</span></pre>
-    <pre class="hero-install-cmd"><span class="prompt-chat">@</span> <span class="muted">"search my Copilot history for</span> <span class="highlight">net8 upgrade</span><span class="muted">"</span></pre>
-    <pre class="hero-install-cmd"><span class="prompt-chat">@</span> <span class="muted">"show me what I did in session</span> <span class="highlight">769739be</span><span class="muted">"</span></pre>
+    <div class="hero-install-label">2 · Use it — slash-command in VS Code Chat, Copilot CLI, or Anya</div>
+    <pre class="hero-install-cmd"><span class="prompt-chat">&gt;</span> <span class="highlight">/engram</span> <span class="muted">find me my chat about dotnet10</span></pre>
+    <pre class="hero-install-cmd"><span class="prompt-chat">&gt;</span> <span class="highlight">/engram</span> <span class="muted">search my Copilot history for net8 upgrade</span></pre>
+    <pre class="hero-install-cmd"><span class="prompt-chat">&gt;</span> <span class="highlight">/engram</span> <span class="muted">show me what I did in session 769739be</span></pre>
   </div>
 </section>
 
@@ -354,7 +354,7 @@ footer a:hover { color: var(--fg); }
     <li>
       <span class="feat-num">06</span>
       <h3>Copilot-skill bundled.</h3>
-      <p>The installer drops a user-level skill at <code>~\.copilot\skills\engram\</code> — auto-discovered by Copilot CLI, VS Code Chat, and Anya. Ask <em>"which chat did I discuss X in"</em> and the agent searches both Chat and CLI stores in one go.</p>
+      <p>The installer drops a user-level skill at <code>~\.copilot\skills\engram\</code> — invoke it anywhere via <code>/engram &lt;prompt&gt;</code> in Copilot CLI, VS Code Chat, or Anya. Ask <em>"/engram find me my chat about dotnet10"</em> and the agent searches both Chat and CLI stores in one go.</p>
     </li>
   </ol>
 </section>
@@ -380,21 +380,22 @@ irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
 <section id="skill">
   <header class="section-head">
     <span class="kicker">03 · Copilot skill</span>
-    <h2>Teach your agent <em>to remember.</em></h2>
-    <p class="section-lede">Installs a user-level Copilot skill to <code>~\.copilot\skills\engram\</code> — auto-discovered by Copilot CLI, VS Code Copilot Chat, and <a href="https://github.com/aasis21/anya" style="color:var(--accent)">Anya</a>. Searches both stores in one pass and tags every hit as <code>CHAT</code> or <code>CLI</code>.</p>
+    <h2>Just type <em>/engram</em>.</h2>
+    <p class="section-lede">Installs a user-level Copilot skill to <code>~\.copilot\skills\engram\</code>. Invoke it with the <code>/engram</code> slash-command in Copilot CLI, VS Code Copilot Chat, or <a href="https://github.com/aasis21/anya" style="color:var(--accent)">Anya</a>. The agent searches both stores in one pass and tags every hit as <code>CHAT</code> or <code>CLI</code>.</p>
   </header>
 
-  <pre class="code-block"><span class="comment"># Two stores, one search — Chat (Engram-built) and CLI (Copilot-CLI-built)</span>
+  <pre class="code-block"><span class="comment"># Natural language — the agent picks the right query/filter</span>
+<span class="kw">/engram</span> find me my chat about dotnet10
+<span class="kw">/engram</span> what did I work on in the ModernOrder repo this week
+<span class="kw">/engram</span> show me what I did in session 769739be
+
+<span class="comment"># Or run the underlying script directly</span>
 python "$env:USERPROFILE\.copilot\skills\engram\scripts\engram_search.py" `
-    list --query <span class="str">"net8 upgrade"</span>
+    list --query <span class="str">"net8 upgrade"</span> --source chat -w ModernOrder --days 90 --json
+python "$env:USERPROFILE\.copilot\skills\engram\scripts\engram_search.py" `
+    show --session 769739be --query upgrade</pre>
 
-<span class="comment"># Filter to one store, restrict by repo, widen the window, get JSON</span>
-... list --query <span class="str">"SNAT OR socket"</span> --source chat -w ModernOrder --days 90 --json
-
-<span class="comment"># Deep-dive a session by id or 8-char prefix</span>
-... show --session 769739be --query upgrade</pre>
-
-  <p class="section-lede" style="margin-top:24px;">Triggers on phrases like <em>"which chat did I discuss X in"</em>, <em>"search my Copilot history"</em>, <em>"find the session about &lt;topic&gt;"</em>, <em>"show me what I did in session &lt;id&gt;"</em>. Read-only, FTS5 + regex, stdlib-only.</p>
+  <p class="section-lede" style="margin-top:24px;">Read-only, FTS5 + regex, stdlib-only. Works the same whether you have just the Chat store, just the CLI store, or both.</p>
 </section>
 
 <section id="query">
