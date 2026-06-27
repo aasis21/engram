@@ -1,0 +1,13 @@
+# Engram
+__pycache__/
+*.pyc
+
+# Local databases / test artifacts
+*.db
+*.db-shm
+*.db-wal
+_test/
+
+# OS
+Thumbs.db
+desktop.ini

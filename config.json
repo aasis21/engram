@@ -1,0 +1,9 @@
+{
+  "db_path": null,
+  "workspace_storage": null,
+  "extra_workspace_storage": [],
+  "max_file_mb": 120,
+  "user_truncate": 1000,
+  "assistant_truncate": 5000,
+  "watermark_overlap_seconds": 3
+}
