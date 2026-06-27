@@ -51,15 +51,17 @@ When installed via `install.ps1`, this skill lives at
 python "$env:USERPROFILE\.copilot\skills\engram\scripts\engram_search.py" list --query "<keywords>"
 ```
 
-Key options:
+`--query` is **optional** — omit it to *browse* every session in the time window
+(handy for "what did I work on today?"). Add filters to narrow the list:
 
 | Option | Meaning |
 |--------|---------|
-| `--query "<text>"` | FTS keyword search (words are ANDed). Required. |
+| `--query "<text>"` | FTS keyword search (words are ANDed). Optional — omit to list all sessions in the window. |
 | `--and "<term>"` | Extra term that must ALSO appear (repeatable). |
 | `--regex` | Treat `--query`/`--and` as regular expressions (scans turns directly). |
 | `--source cli\|chat\|all` | Which store(s) to search (default `all`). |
 | `--repo`, `-w "<substr>"` | Keep only sessions whose location (repo/cwd/branch/file) contains the substring. |
+| `--today` | Only sessions updated **today** (local time). Overrides `--days`. |
 | `--days N` | Only sessions updated within N days (default `30`; `0` = all history). |
 | `--limit N` | Max results (default 25). |
 | `--json` | Machine-readable output. |
@@ -67,10 +69,16 @@ Key options:
 Examples:
 
 ```powershell
+# Keyword search
 python engram_search.py list --query "net8 upgrade dual targeting"
 python engram_search.py list --query "SNAT|socket exhaustion" --regex --days 90
 python engram_search.py list --query "recon" -w ModernOrder --source chat
-python engram_search.py list --query "817352353" --and retrospective --json
+
+# No keyword — just browse by time
+python engram_search.py list --today                  # everything worked on today
+python engram_search.py list --today --source chat    # today, Chat store only
+python engram_search.py list --days 7 -w ModernOrder  # this week in one repo
+python engram_search.py list --limit 10               # 10 most recent (last 30 days)
 ```
 
 Each hit shows: source tag (`CHAT`/`CLI`), updated time, 8-char id, match count, turn count, title, location, and the opening prompt.
@@ -160,7 +168,8 @@ sqlite3 -readonly "$env:USERPROFILE\.copilot\session-store-vscode-chat.db" `
 ## Recommended flow
 
 1. Run `list` with the user's topic. Start with the default 30-day window;
-   widen with `--days 0` if nothing turns up.
+   widen with `--days 0` if nothing turns up. For "what did I do today / this
+   week?", drop `--query` and use `--today` or `--days N` to browse by time.
 2. Present the ranked matches (note `CHAT` vs `CLI`). Ask which to open, or
    pick the top hit.
 3. Run `show --session <id>` (optionally `--query` to jump to relevant turns)

@@ -18,6 +18,10 @@ Usage
   python engram_search.py list --query "upgrade net8"
   python engram_search.py list --query "SNAT|socket" --regex --days 90
   python engram_search.py list --query "recon" --source chat --repo ModernOrder
+
+  # --query is optional — browse by time window instead of a keyword:
+  python engram_search.py list --today                 # everything worked on today
+  python engram_search.py list --days 7 --repo ModernOrder
   python engram_search.py list --query "817352353" --and retrospective --json
 
   # Deep-dive a session (id or 8-char prefix; searches both stores):
@@ -83,6 +87,13 @@ def cutoff_iso(days):
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
+def today_cutoff_iso():
+    """UTC ISO cutoff for the start of *today* in the user's local timezone."""
+    now_local = datetime.now().astimezone()
+    midnight_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
 def fts_query(terms):
     """Build a safe FTS5 MATCH expression: all word-tokens ANDed."""
     tokens = []
@@ -114,25 +125,25 @@ def workspace_label(row):
 # ---------------------------------------------------------------------------
 # Per-store search
 # ---------------------------------------------------------------------------
-def search_store(source, path, query, and_terms, regex, days, repo, limit):
+def search_store(source, path, query, and_terms, regex, cutoff, repo, limit):
     con = connect_ro(path)
     con.row_factory = sqlite3.Row
     scols = table_columns(con, "sessions")
-    cutoff = cutoff_iso(days)
     results = []
 
     # 1) Determine candidate session_ids + match counts.
     match_counts = {}  # session_id -> int
-    all_terms = [query] + list(and_terms)
+    all_terms = [t for t in ([query] if query else []) + list(and_terms) if t]
+    has_query = bool(all_terms)
 
-    if regex:
+    if has_query and regex:
         patterns = [re.compile(t, re.IGNORECASE) for t in all_terms]
         sql = "SELECT session_id, user_message, assistant_response FROM turns"
         for r in con.execute(sql):
             blob = f"{r['user_message'] or ''}\n{r['assistant_response'] or ''}"
             if all(p.search(blob) for p in patterns):
                 match_counts[r["session_id"]] = match_counts.get(r["session_id"], 0) + 1
-    else:
+    elif has_query:
         # FTS prefilter: a session must match EVERY term (AND across terms),
         # match count = rows in the index for the combined expression.
         per_term_sets = []
@@ -166,7 +177,7 @@ def search_store(source, path, query, and_terms, regex, days, repo, limit):
             ):
                 match_counts[r["session_id"]] = r["c"]
 
-    if not match_counts:
+    if has_query and not match_counts:
         con.close()
         return results
 
@@ -175,11 +186,25 @@ def search_store(source, path, query, and_terms, regex, days, repo, limit):
     for opt in ("cwd", "host_type", "responder", "source_file", "initial_location"):
         if opt in scols:
             sel.append(opt)
-    placeholders = ",".join("?" * len(match_counts))
-    rows = con.execute(
-        f"SELECT {','.join(sel)} FROM sessions WHERE id IN ({placeholders})",
-        tuple(match_counts.keys()),
-    ).fetchall()
+
+    if has_query:
+        placeholders = ",".join("?" * len(match_counts))
+        rows = con.execute(
+            f"SELECT {','.join(sel)} FROM sessions WHERE id IN ({placeholders})",
+            tuple(match_counts.keys()),
+        ).fetchall()
+    else:
+        # Browse mode: no keyword filter — list recent sessions in the window.
+        sql = f"SELECT {','.join(sel)} FROM sessions"
+        params = []
+        if cutoff:
+            sql += " WHERE updated_at >= ?"
+            params.append(cutoff)
+        sql += " ORDER BY updated_at DESC"
+        if not repo:
+            sql += " LIMIT ?"
+            params.append(limit)
+        rows = con.execute(sql, tuple(params)).fetchall()
 
     for row in rows:
         rd = dict(row)
@@ -227,11 +252,13 @@ def cmd_list(args):
         print("No session-store databases found.", file=sys.stderr)
         return 1
 
+    cutoff = today_cutoff_iso() if args.today else cutoff_iso(args.days)
+
     merged = []
     for source, path in stores:
         merged += search_store(
             source, path, args.query, args.and_, args.regex,
-            args.days, args.repo, args.limit,
+            cutoff, args.repo, args.limit,
         )
     merged.sort(key=lambda r: r["time"], reverse=True)
     merged = merged[: args.limit]
@@ -244,11 +271,20 @@ def cmd_list(args):
         print("No matching sessions.")
         return 0
 
-    print(f"\n{len(merged)} session(s) matching '{args.query}' "
+    if args.query:
+        scope = f"matching '{args.query}'"
+    elif args.today:
+        scope = "worked on today"
+    elif args.days and args.days > 0:
+        scope = f"updated in the last {args.days} day(s)"
+    else:
+        scope = "(all history)"
+    print(f"\n{len(merged)} session(s) {scope} "
           f"(sources: {', '.join(s[0] for s in stores)}):\n")
     for r in merged:
         tag = r["source"].upper()
-        print(f"[{tag:4}] {r['time'][:19]}  {r['id'][:8]}  matches={r['matches']}  turns={r['turns']}")
+        meta = f"matches={r['matches']}  " if args.query else ""
+        print(f"[{tag:4}] {r['time'][:19]}  {r['id'][:8]}  {meta}turns={r['turns']}")
         print(f"        title : {r['title']}")
         print(f"        where : {clean(r['workspace'], 90)}")
         if r["opened"]:
@@ -331,13 +367,16 @@ def build_parser():
     p.add_argument("--chat-db", help="Override path to session-store-vscode-chat.db")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    pl = sub.add_parser("list", help="List sessions matching a topic.")
-    pl.add_argument("--query", required=True, help="Search term (FTS keywords, or regex with --regex).")
+    pl = sub.add_parser("list", help="List sessions by topic and/or time window.")
+    pl.add_argument("--query", help="Search term (FTS keywords, or regex with --regex). "
+                                    "Optional — omit to browse all sessions in the time window.")
     pl.add_argument("--and", dest="and_", action="append", default=[],
                     help="Extra term that must ALSO appear (repeatable).")
     pl.add_argument("--regex", action="store_true", help="Treat query/--and as regular expressions.")
     pl.add_argument("--source", choices=["cli", "chat", "all"], default="all")
     pl.add_argument("--repo", "-w", help="Only sessions whose location contains this substring.")
+    pl.add_argument("--today", action="store_true",
+                    help="Only sessions updated today (local time). Overrides --days.")
     pl.add_argument("--days", type=int, default=30, help="Only sessions updated within N days (default 30; 0 = all).")
     pl.add_argument("--limit", type=int, default=25)
     pl.add_argument("--json", action="store_true")
