@@ -94,14 +94,16 @@ foreach ($f in $files) {
 $engram = Join-Path $InstallDir 'engram.py'
 
 # --- Install Copilot skill ------------------------------------------------
-# Copies the bundled 'engram' skill to ~/.copilot/skills so Copilot CLI,
-# VS Code, and Anya all auto-discover it as a user-level skill.
-$skillSrc = Join-Path $here 'skills\engram\SKILL.md'
-if (Test-Path $skillSrc) {
+# Copies the bundled 'engram' skill (SKILL.md + scripts) to ~/.copilot/skills/
+# so Copilot CLI, VS Code, and Anya all auto-discover it as a user-level skill.
+$skillSrcDir = Join-Path $here 'skills\engram'
+if (Test-Path $skillSrcDir) {
     $skillDest = Join-Path $env:USERPROFILE '.copilot\skills\engram'
+    # Wipe stale files (old SKILL.md without script, etc.) before re-copying.
+    if (Test-Path $skillDest) { Remove-Item -Recurse -Force $skillDest }
     New-Item -ItemType Directory -Force -Path $skillDest | Out-Null
-    Copy-Item $skillSrc -Destination (Join-Path $skillDest 'SKILL.md') -Force
-    Write-Host "Skill    : engram -> $skillDest\SKILL.md"
+    Copy-Item -Path (Join-Path $skillSrcDir '*') -Destination $skillDest -Recurse -Force
+    Write-Host "Skill    : engram -> $skillDest"
 }
 
 # --- Initial index --------------------------------------------------------
