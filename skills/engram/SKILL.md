@@ -98,7 +98,39 @@ Accepts a full id or 8-char prefix and searches both stores. Options:
 | `--full` | Show every turn untruncated. |
 | `--source cli\|chat\|all` | Limit the lookup to one store. |
 
-### 3. Quick keyword check via Engram CLI (Chat store only)
+### 3. Count activity — `stats`
+
+```powershell
+python engram_search.py stats              # full report, last 30 days, both stores
+```
+
+Aggregates how many **sessions** and **turns** match a window/filter and breaks
+them down by day, repo/location, and source. Unlike `list`, it is **never**
+truncated by `--limit` — it counts the full matched set, so use it whenever you
+need an accurate total (e.g. the `list` footer says "limit reached").
+
+| Option | Meaning |
+|--------|---------|
+| `--query "<text>"` | Count only sessions matching the term (optional). |
+| `--and "<term>"` | Extra term that must ALSO appear (repeatable). |
+| `--regex` | Treat `--query`/`--and` as regular expressions. |
+| `--source cli\|chat\|all` | Which store(s) to count (default `all`). |
+| `--repo`, `-w "<substr>"` | Only sessions whose location contains the substring. |
+| `--today` | Only today (local time). Overrides `--days`. |
+| `--days N` | Window in days (default `30`; `0` = all history). |
+| `--by day\|repo\|source` | Narrow which breakdown(s) to show (repeatable). Default: all three. |
+| `--json` | Machine-readable output. |
+
+Examples:
+
+```powershell
+python engram_search.py stats --days 7              # this week's totals + breakdowns
+python engram_search.py stats --today --by repo     # today, just the repo table
+python engram_search.py stats --query recon --days 0  # all-time count of "recon" sessions
+python engram_search.py stats --days 30 --by day --json
+```
+
+### 4. Quick keyword check via Engram CLI (Chat store only)
 
 For a fast peek into just the Chat store, you can also use Engram's own CLI:
 
@@ -174,6 +206,8 @@ sqlite3 -readonly "$env:USERPROFILE\.copilot\session-store-vscode-chat.db" `
    pick the top hit.
 3. Run `show --session <id>` (optionally `--query` to jump to relevant turns)
    and summarize what that session covered.
+4. For "how much / how many?" questions (counts per day, repo, or source), use
+   `stats` instead of `list` — it ignores `--limit` and returns true totals.
 
 ## Notes
 

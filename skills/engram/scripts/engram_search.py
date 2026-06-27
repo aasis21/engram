@@ -30,6 +30,12 @@ Usage
   python engram_search.py show --session 769739be --turn 5
   python engram_search.py show --session 769739be --full
 
+  # Aggregate counts over a window (never truncated by --limit):
+  python engram_search.py stats                    # full report, last 30 days
+  python engram_search.py stats --days 7           # this week's activity
+  python engram_search.py stats --today --by repo  # today, only the repo table
+  python engram_search.py stats --query deployment --days 0 --json
+
 Read-only: opens every database with ?mode=ro and never writes.
 Standard library only (argparse, sqlite3, json, re).
 """
@@ -290,6 +296,113 @@ def cmd_list(args):
         if r["opened"]:
             print(f"        opened: {r['opened']}")
         print()
+    if len(merged) >= args.limit:
+        print(f"(showing first {len(merged)} - limit reached; raise --limit "
+              f"or run `stats` for full totals)\n")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# stats
+# ---------------------------------------------------------------------------
+def _bar(n, mx, width=22):
+    if mx <= 0:
+        return ""
+    return "\u2588" * max(1, round(n / mx * width))
+
+
+def cmd_stats(args):
+    stores = store_paths(args.cli_db, args.chat_db)
+    if args.source != "all":
+        stores = [s for s in stores if s[0] == args.source]
+    if not stores:
+        print("No session-store databases found.", file=sys.stderr)
+        return 1
+
+    cutoff = today_cutoff_iso() if args.today else cutoff_iso(args.days)
+    BIG = 10 ** 9  # stats counts the full matched set — never truncates
+    rows = []
+    for source, path in stores:
+        rows += search_store(
+            source, path, args.query, args.and_, args.regex,
+            cutoff, args.repo, BIG,
+        )
+
+    total_sessions = len(rows)
+    total_turns = sum(r["turns"] for r in rows)
+    by_source, by_day, by_repo = {}, {}, {}
+    for r in rows:
+        by_source[r["source"]] = by_source.get(r["source"], 0) + 1
+        day = (r["time"] or "")[:10]
+        if day:
+            by_day[day] = by_day.get(day, 0) + 1
+        repo = clean(r["workspace"], 60) or "(unknown)"
+        by_repo[repo] = by_repo.get(repo, 0) + 1
+
+    which = set(args.by) if args.by else {"day", "repo", "source"}
+
+    if args.today:
+        window = "today"
+    elif args.days and args.days > 0:
+        window = f"last {args.days} day(s)"
+    else:
+        window = "all history"
+
+    if args.json:
+        out = {
+            "window": window,
+            "sources": [s[0] for s in stores],
+            "sessions": total_sessions,
+            "turns": total_turns,
+            "by_source": by_source,
+        }
+        if "day" in which:
+            out["by_day"] = dict(sorted(by_day.items(), reverse=True))
+        if "repo" in which:
+            out["by_repo"] = dict(
+                sorted(by_repo.items(), key=lambda kv: kv[1], reverse=True)
+            )
+        print(json.dumps(out, indent=2))
+        return 0
+
+    src_split = "  ".join(
+        f"{k} {v}" for k, v in sorted(by_source.items(), key=lambda kv: kv[1], reverse=True)
+    )
+    head = f"Window: {window}   sources: {', '.join(s[0] for s in stores)}"
+    if args.query:
+        head += f"   query: '{args.query}'"
+    if args.repo:
+        head += f"   repo~{args.repo}"
+    print()
+    print(head)
+    print("\u2500" * 56)
+    print(f"Sessions : {total_sessions:,}" + (f"   ({src_split})" if src_split else ""))
+    print(f"Turns    : {total_turns:,}")
+    if "day" in which:
+        print(f"Active   : {len(by_day)} day(s) with activity")
+
+    if total_sessions == 0:
+        print("\n(no sessions in window)")
+        return 0
+
+    if "day" in which and by_day:
+        print("\nBy day:")
+        mx = max(by_day.values())
+        for day in sorted(by_day, reverse=True):
+            n = by_day[day]
+            print(f"  {day}  {_bar(n, mx):<22} {n}")
+
+    if "repo" in which and by_repo:
+        print("\nBy repo / location:")
+        mx = max(by_repo.values())
+        for repo, n in sorted(by_repo.items(), key=lambda kv: kv[1], reverse=True):
+            print(f"  {n:>5}  {_bar(n, mx):<22} {repo}")
+
+    if "source" in which and by_source:
+        print("\nBy source:")
+        for k, v in sorted(by_source.items(), key=lambda kv: kv[1], reverse=True):
+            print(f"  {k:<6} {v}")
+    print()
     return 0
 
 
@@ -381,6 +494,20 @@ def build_parser():
     pl.add_argument("--limit", type=int, default=25)
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_list)
+
+    pt = sub.add_parser("stats", help="Aggregate session/turn counts over a window (never truncated).")
+    pt.add_argument("--query", help="Optional search term — count only matching sessions.")
+    pt.add_argument("--and", dest="and_", action="append", default=[],
+                    help="Extra term that must ALSO appear (repeatable).")
+    pt.add_argument("--regex", action="store_true", help="Treat query/--and as regular expressions.")
+    pt.add_argument("--source", choices=["cli", "chat", "all"], default="all")
+    pt.add_argument("--repo", "-w", help="Only sessions whose location contains this substring.")
+    pt.add_argument("--today", action="store_true", help="Only today (local time). Overrides --days.")
+    pt.add_argument("--days", type=int, default=30, help="Window in days (default 30; 0 = all).")
+    pt.add_argument("--by", action="append", choices=["day", "repo", "source"],
+                    help="Narrow which breakdown(s) to show (repeatable). Default: all three.")
+    pt.add_argument("--json", action="store_true")
+    pt.set_defaults(func=cmd_stats)
 
     ps = sub.add_parser("show", help="Render a session transcript.")
     ps.add_argument("--session", required=True, help="Session id or 8-char prefix.")
