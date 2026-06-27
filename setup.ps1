@@ -93,6 +93,17 @@ foreach ($f in $files) {
 }
 $engram = Join-Path $InstallDir 'engram.py'
 
+# --- Install Copilot skill ------------------------------------------------
+# Copies the bundled 'engram' skill to ~/.copilot/skills so Copilot CLI,
+# VS Code, and Anya all auto-discover it as a user-level skill.
+$skillSrc = Join-Path $here 'skills\engram\SKILL.md'
+if (Test-Path $skillSrc) {
+    $skillDest = Join-Path $env:USERPROFILE '.copilot\skills\engram'
+    New-Item -ItemType Directory -Force -Path $skillDest | Out-Null
+    Copy-Item $skillSrc -Destination (Join-Path $skillDest 'SKILL.md') -Force
+    Write-Host "Skill    : engram -> $skillDest\SKILL.md"
+}
+
 # --- Initial index --------------------------------------------------------
 if (-not $NoInitialIndex) {
     $dbExists = Test-Path (Join-Path $env:USERPROFILE '.copilot\session-store-vscode-chat.db')

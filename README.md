@@ -34,8 +34,9 @@ irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
 That will:
 1. Clone the repo to `~\engram`.
 2. Copy Engram to `%LOCALAPPDATA%\Engram`.
-3. Run an initial full index (a few minutes the first time).
-4. Register a hidden scheduled task **"Engram Indexer"** that re-indexes every 10 minutes.
+3. Install the bundled `engram` Copilot skill to `~\.copilot\skills\engram\` (auto-discovered by Copilot CLI, VS Code, and Anya).
+4. Run an initial full index (a few minutes the first time).
+5. Register a hidden scheduled task **"Engram Indexer"** that re-indexes every 10 minutes.
 
 Then query anytime:
 

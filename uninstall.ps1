@@ -41,6 +41,11 @@ if ($RemoveData) {
     } else {
         Write-Host "Install directory not found: $InstallDir"
     }
+    $skillDir = Join-Path $env:USERPROFILE '.copilot\skills\engram'
+    if (Test-Path $skillDir) {
+        Remove-Item -Recurse -Force $skillDir
+        Write-Host "Removed Copilot skill: $skillDir"
+    }
 } else {
     Write-Host "Kept data + files at: $InstallDir"
     Write-Host "(Re-run with -RemoveData to delete the database and installed files.)"
