@@ -252,6 +252,7 @@ footer a:hover { color: var(--fg); }
   .nav { padding: 20px; }
   .nav-links { gap: 14px; }
   .nav-links a { font-size: 12px; }
+  .nav-links a:not([href="#install"]) { display: none; }
   .hero { padding: 40px 20px; }
   section { padding: 60px 20px; }
 }
@@ -303,7 +304,7 @@ footer a:hover { color: var(--fg); }
     <a class="btn btn-ghost" href="https://github.com/aasis21/engram" target="_blank" rel="noopener">View on GitHub</a>
   </div>
 
-  <p class="hero-proof">Pure Python stdlib. Zero dependencies. Read-only with respect to VS Code. Sibling project to <a href="https://github.com/aasis21/anya">Anya</a>.</p>
+  <p class="hero-proof">Pure Python stdlib. Zero dependencies. Read-only with respect to VS Code. Sibling project to <a href="https://aasis21.github.io/Anya/">Anya</a>.</p>
 
   <div class="hero-install">
     <div class="hero-install-label">1 · Install — one line · PowerShell</div>
@@ -363,7 +364,7 @@ footer a:hover { color: var(--fg); }
   <header class="section-head">
     <span class="kicker">02 · Install</span>
     <h2>One line. <em>That's it.</em></h2>
-    <p class="section-lede">Requires Python 3.8+ and git on PATH. The bootstrap clones the repo to <code>~\engram</code>, copies the indexer to <code>%LOCALAPPDATA%\Engram</code>, runs the initial full index, and registers the scheduled task.</p>
+    <p class="section-lede">Requires Python 3.8+ and git on PATH. The bootstrap clones the repo to <code>%LOCALAPPDATA%\Engram-src</code>, copies the indexer to <code>%LOCALAPPDATA%\Engram</code>, runs the initial full index, and registers the scheduled task.</p>
   </header>
 
   <pre class="code-block"><span class="comment"># PowerShell</span>
@@ -381,7 +382,7 @@ irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
   <header class="section-head">
     <span class="kicker">03 · Copilot skill</span>
     <h2>Just type <em>/engram</em>.</h2>
-    <p class="section-lede">Installs a user-level Copilot skill to <code>~\.copilot\skills\engram\</code>. Invoke it with the <code>/engram</code> slash-command in Copilot CLI, VS Code Copilot Chat, or <a href="https://github.com/aasis21/anya" style="color:var(--accent)">Anya</a>. The agent searches both stores in one pass and tags every hit as <code>CHAT</code> or <code>CLI</code>.</p>
+    <p class="section-lede">Installs a user-level Copilot skill to <code>~\.copilot\skills\engram\</code>. Invoke it with the <code>/engram</code> slash-command in Copilot CLI, VS Code Copilot Chat, or <a href="https://aasis21.github.io/Anya/" style="color:var(--accent)">Anya</a>. The agent searches both stores in one pass and tags every hit as <code>CHAT</code> or <code>CLI</code>.</p>
   </header>
 
   <pre class="code-block"><span class="comment"># Natural language — the agent picks the right query/filter</span>
