@@ -53,7 +53,7 @@
   --highlight: #b8860b;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; overflow-x: hidden; }
 body {
   background: var(--bg);
   color: var(--fg);
@@ -249,7 +249,7 @@ footer a { color: var(--fg-dim); text-decoration: none; margin-left: 16px; }
 footer a:hover { color: var(--fg); }
 
 @media (max-width: 640px) {
-  .nav { padding: 20px; }
+  .nav { padding: 20px; flex-wrap: wrap; gap: 10px; }
   .nav-links { gap: 14px; }
   .nav-links a { font-size: 12px; }
   .nav-links a:not([href="#install"]) { display: none; }
