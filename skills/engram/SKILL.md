@@ -89,7 +89,7 @@ python engram_search.py list --days 7 -w ModernOrder  # this week in one repo
 python engram_search.py list --limit 10               # 10 most recent (last 30 days)
 ```
 
-Each hit shows: source tag (`CHAT`/`CLI`), updated time, 8-char id, match count, turn count, title, location, and the opening prompt.
+Each hit shows: source tag (`CHAT`/`CLI`), updated time, 8-char id, match count, turn count, title, location, the opening prompt, and a `files` line with the count of files **created** and **edited** in that session (shown only when nonzero).
 
 ### 2. Deep-dive a session — `show`
 
@@ -164,6 +164,10 @@ The three commands above cover ~80% of recall needs — reach for SQL only for
 queries they can't express (custom joins, file-graph lookups, ad-hoc grouping).
 Both stores share the same schema: `sessions`, `turns`, `session_files`,
 `session_refs`, FTS5 `search_index`.
+
+`session_files` rows are deduped per session (`UNIQUE(session_id, file_path)`),
+with `tool_name` recording how the file was touched (`create`/`edit`/`read`,
+one row per file at its strongest action).
 
 > **Never write to these files.** Engram's scheduled task owns the Chat DB and
 > Copilot CLI owns the CLI DB. Always open with `?mode=ro` (Python) or
