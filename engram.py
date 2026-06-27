@@ -422,9 +422,52 @@ def _collect_uri(obj, out):
         out.append(obj["path"].lstrip("/").replace("/", "\\"))
 
 
+# File-touch classification. A file gets the strongest action seen across the
+# session; tool_name stays NULL for files that were only referenced/attached.
+_FILE_ACTION_RANK = {"create": 3, "edit": 2, "read": 1, None: 0}
+_CREATE_TOOLS = {"copilot_createFile", "createFile", "create_file"}
+_EDIT_TOOLS = {
+    "copilot_replaceString", "copilot_multiReplaceString", "copilot_insertEdit",
+    "copilot_applyPatch", "copilot_editFile", "replace_string_in_file",
+    "multi_replace_string_in_file", "insert_edit_into_file", "apply_patch",
+    "edit_notebook_file",
+}
+_READ_TOOLS = {"copilot_readFile", "readFile", "read_file"}
+
+
+def _tool_action(tool_id):
+    if tool_id in _CREATE_TOOLS:
+        return "create"
+    if tool_id in _EDIT_TOOLS:
+        return "edit"
+    if tool_id in _READ_TOOLS:
+        return "read"
+    return None
+
+
+def merge_action(old, new):
+    return new if _FILE_ACTION_RANK.get(new, 0) > _FILE_ACTION_RANK.get(old, 0) else old
+
+
+def _tool_uris(item):
+    """File paths attached to a toolInvocationSerialized item."""
+    out = []
+    for key in ("invocationMessage", "pastTenseMessage"):
+        msg = item.get(key)
+        if isinstance(msg, dict) and isinstance(msg.get("uris"), dict):
+            for v in msg["uris"].values():
+                if isinstance(v, dict):
+                    _collect_uri(v, out)
+    return out
+
+
 def extract_files_and_refs(request):
-    files = set()
+    files = {}        # file_path -> action (create/edit/read/None)
     refs = set()
+
+    def add_file(path, action):
+        if path:
+            files[path] = merge_action(files.get(path), action)
 
     agent = request.get("agent")
     if isinstance(agent, dict):
@@ -440,8 +483,7 @@ def extract_files_and_refs(request):
             tmp = []
             _collect_uri(ref if isinstance(ref, dict) else cr, tmp)
             for f in tmp:
-                if f:
-                    files.add(f)
+                add_file(f, None)
 
     for item in request.get("response") or []:
         if not isinstance(item, dict):
@@ -451,23 +493,31 @@ def extract_files_and_refs(request):
             tid = item.get("toolId") or item.get("toolName")
             if tid:
                 refs.add(("tool", str(tid)))
+            action = _tool_action(tid)
+            if action is not None:
+                for f in _tool_uris(item):
+                    add_file(f, action)
         elif kind == "prepareToolInvocation":
             if item.get("toolName"):
                 refs.add(("tool", str(item["toolName"])))
-        elif kind in ("codeblockUri", "textEditGroup"):
+        elif kind == "textEditGroup":
             uri = item.get("uri")
             tmp = []
             _collect_uri(uri if isinstance(uri, dict) else {"external": uri}, tmp)
             for f in tmp:
-                if f:
-                    files.add(f)
+                add_file(f, "edit")
+        elif kind == "codeblockUri":
+            uri = item.get("uri")
+            tmp = []
+            _collect_uri(uri if isinstance(uri, dict) else {"external": uri}, tmp)
+            for f in tmp:
+                add_file(f, None)
         elif kind == "inlineReference":
             ir = item.get("inlineReference")
             tmp = []
             _collect_uri(ir if isinstance(ir, dict) else {}, tmp)
             for f in tmp:
-                if f:
-                    files.add(f)
+                add_file(f, None)
     return files, refs
 
 
@@ -481,7 +531,7 @@ def parse_chat_model(model):
         return None
 
     turns = []
-    files = {}        # file_path -> first turn index
+    files = {}        # file_path -> {"turn": first turn index, "action": action}
     refs = {}
     last_ts_iso = None
     for idx, req in enumerate(requests):
@@ -505,8 +555,12 @@ def parse_chat_model(model):
             "agent": agent_name,
         })
         f, r = extract_files_and_refs(req)
-        for fp in f:
-            files.setdefault(fp, idx)
+        for fp, action in f.items():
+            cur = files.get(fp)
+            if cur is None:
+                files[fp] = {"turn": idx, "action": action}
+            else:
+                cur["action"] = merge_action(cur["action"], action)
         for rk in r:
             refs.setdefault(rk, idx)
 
@@ -627,11 +681,11 @@ def upsert_session(conn, rec, meta, source_format, ws_hash, source_file, mtime, 
                 "INSERT INTO search_index(content, session_id, source_type, source_id) "
                 "VALUES (?,?,?,?)", (blob, sid, "turn", str(t["turn_index"])))
 
-    for fp, ti in rec["files"].items():
+    for fp, info in rec["files"].items():
         conn.execute(
             "INSERT OR IGNORE INTO session_files(session_id, file_path, tool_name, "
             "turn_index, first_seen_at) VALUES (?,?,?,?,?)",
-            (sid, fp, None, ti, now_iso()))
+            (sid, fp, info["action"], info["turn"], now_iso()))
     for (rt, rv), ti in rec["refs"].items():
         conn.execute(
             "INSERT OR IGNORE INTO session_refs(session_id, ref_type, ref_value, "

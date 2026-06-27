@@ -212,6 +212,28 @@ def search_store(source, path, query, and_terms, regex, cutoff, repo, limit):
             params.append(limit)
         rows = con.execute(sql, tuple(params)).fetchall()
 
+    # Per-session created/edited file counts. `read` is intentionally omitted:
+    # the CLI store never records reads, so it can't be shown consistently.
+    file_counts = {}
+    ids = [r["id"] for r in rows]
+    for i in range(0, len(ids), 800):
+        chunk = ids[i:i + 800]
+        ph = ",".join("?" * len(chunk))
+        try:
+            for fr in con.execute(
+                f"SELECT session_id, tool_name, COUNT(*) c FROM session_files "
+                f"WHERE session_id IN ({ph}) AND tool_name IN ('create','edit') "
+                f"GROUP BY session_id, tool_name",
+                tuple(chunk),
+            ):
+                d = file_counts.setdefault(fr["session_id"], {"created": 0, "edited": 0})
+                if fr["tool_name"] == "create":
+                    d["created"] = fr["c"]
+                else:
+                    d["edited"] = fr["c"]
+        except sqlite3.Error:
+            break
+
     for row in rows:
         rd = dict(row)
         updated = rd.get("updated_at") or ""
@@ -242,7 +264,11 @@ def search_store(source, path, query, and_terms, regex, cutoff, repo, limit):
                 "title": clean(rd.get("summary"), 80) or "(no summary)",
                 "matches": match_counts.get(rd["id"], 0),
                 "turns": total,
-                "workspace": label,
+                "cwd": rd.get("cwd") or "",
+                "repo": rd.get("repository") or "",
+                "branch": rd.get("branch") or "",
+                "created": file_counts.get(rd["id"], {}).get("created", 0),
+                "edited": file_counts.get(rd["id"], {}).get("edited", 0),
                 "opened": clean(op[0] if op else "", 120),
             }
         )
@@ -309,7 +335,11 @@ def cmd_list(args):
         meta = f"matches={r['matches']}  " if args.query else ""
         print(f"[{tag:4}] {r['time'][:19]}  {r['id'][:8]}  {meta}turns={r['turns']}")
         print(f"        title : {r['title']}")
-        print(f"        where : {clean(r['workspace'], 90)}")
+        print(f"        cwd   : {clean(r['cwd'] or '(unknown)', 90)}")
+        if r["repo"] or r["branch"]:
+            print(f"        repo  : {r['repo'] or '\u2014'}   branch: {r['branch'] or '\u2014'}")
+        if r["created"] or r["edited"]:
+            print(f"        files : created {r['created']}, edited {r['edited']}")
         if r["opened"]:
             print(f"        opened: {r['opened']}")
         print()
@@ -355,7 +385,7 @@ def cmd_stats(args):
         day = (r["time"] or "")[:10]
         if day:
             by_day[day] = by_day.get(day, 0) + 1
-        repo = clean(r["workspace"], 60) or "(unknown)"
+        repo = clean(r["repo"] or r["cwd"], 60) or "(unknown)"
         by_repo[repo] = by_repo.get(repo, 0) + 1
 
     which = set(args.by) if args.by else {"day", "repo", "source"}
