@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-search_sessions.py — Unified search across BOTH Copilot session-store databases.
+engram_search.py — Unified search across BOTH Copilot session-store databases.
 
 Two SQLite stores live under ~/.copilot/ on this machine:
 
   * session-store.db                  -> Copilot CLI / Forge sessions   (source: "cli")
-  * session-store-vscode-chat.db      -> VS Code Copilot Chat sessions  (source: "chat")
+  * session-store-vscode-chat.db      -> VS Code Copilot Chat sessions  (source: "chat",
+                                          built and maintained by Engram)
 
 Both share the same core shape (sessions / turns) and an FTS5 full-text index
 `search_index(content, session_id, source_type, source_id)`. This tool queries
@@ -14,16 +15,16 @@ them together, tags every hit with its origin, and returns one merged, ranked li
 Usage
 -----
   # List sessions matching a topic across both stores (last 30 days by default):
-  python search_sessions.py list --query "upgrade net8"
-  python search_sessions.py list --query "SNAT|socket" --regex --days 90
-  python search_sessions.py list --query "recon" --source chat --repo ModernOrder
-  python search_sessions.py list --query "817352353" --and retrospective --json
+  python engram_search.py list --query "upgrade net8"
+  python engram_search.py list --query "SNAT|socket" --regex --days 90
+  python engram_search.py list --query "recon" --source chat --repo ModernOrder
+  python engram_search.py list --query "817352353" --and retrospective --json
 
   # Deep-dive a session (id or 8-char prefix; searches both stores):
-  python search_sessions.py show --session 769739be
-  python search_sessions.py show --session 769739be --query upgrade
-  python search_sessions.py show --session 769739be --turn 5
-  python search_sessions.py show --session 769739be --full
+  python engram_search.py show --session 769739be
+  python engram_search.py show --session 769739be --query upgrade
+  python engram_search.py show --session 769739be --turn 5
+  python engram_search.py show --session 769739be --full
 
 Read-only: opens every database with ?mode=ro and never writes.
 Standard library only (argparse, sqlite3, json, re).

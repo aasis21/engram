@@ -37,18 +37,18 @@ The CLI DB needs no setup — Copilot CLI writes it as you use it.
 
 ## How to use
 
-The bundled script `scripts/search_sessions.py` (Python 3, stdlib only,
+The bundled script `scripts/engram_search.py` (Python 3, stdlib only,
 read-only) is the recommended entry point. It queries both stores in one pass
 using their shared FTS5 index and merges the hits.
 
 When installed via `install.ps1`, this skill lives at
 `~\.copilot\skills\engram\` — so the script is at
-`~\.copilot\skills\engram\scripts\search_sessions.py`.
+`~\.copilot\skills\engram\scripts\engram_search.py`.
 
 ### 1. Find sessions — `list`
 
 ```powershell
-python "$env:USERPROFILE\.copilot\skills\engram\scripts\search_sessions.py" list --query "<keywords>"
+python "$env:USERPROFILE\.copilot\skills\engram\scripts\engram_search.py" list --query "<keywords>"
 ```
 
 Key options:
@@ -67,10 +67,10 @@ Key options:
 Examples:
 
 ```powershell
-python search_sessions.py list --query "net8 upgrade dual targeting"
-python search_sessions.py list --query "SNAT|socket exhaustion" --regex --days 90
-python search_sessions.py list --query "recon" -w ModernOrder --source chat
-python search_sessions.py list --query "817352353" --and retrospective --json
+python engram_search.py list --query "net8 upgrade dual targeting"
+python engram_search.py list --query "SNAT|socket exhaustion" --regex --days 90
+python engram_search.py list --query "recon" -w ModernOrder --source chat
+python engram_search.py list --query "817352353" --and retrospective --json
 ```
 
 Each hit shows: source tag (`CHAT`/`CLI`), updated time, 8-char id, match count, turn count, title, location, and the opening prompt.
@@ -78,7 +78,7 @@ Each hit shows: source tag (`CHAT`/`CLI`), updated time, 8-char id, match count,
 ### 2. Deep-dive a session — `show`
 
 ```powershell
-python search_sessions.py show --session 769739be
+python engram_search.py show --session 769739be
 ```
 
 Accepts a full id or 8-char prefix and searches both stores. Options:
@@ -99,7 +99,7 @@ python "$env:LOCALAPPDATA\Engram\engram.py" query "<keywords>"
 python "$env:LOCALAPPDATA\Engram\engram.py" status   # last run, watermark, totals
 ```
 
-Prefer `search_sessions.py` when you want CLI sessions in the results too.
+Prefer `engram_search.py` when you want CLI sessions in the results too.
 
 ## Going beyond the script — direct SQL
 
