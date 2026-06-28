@@ -21,7 +21,7 @@ Config resolution (first found wins):
     1. --config <path>
     2. ENGRAM_CONFIG env var
     3. config.json next to this script
-    4. %LOCALAPPDATA%\\Engram\\config.json
+    4. platform config dir (Engram/config.json)
 Any individual value can also be overridden by env vars:
     ENGRAM_DB, ENGRAM_WORKSPACE_STORAGE, ENGRAM_MAX_FILE_MB
 """
@@ -47,12 +47,32 @@ DEFAULT_ASSISTANT_TRUNC = 5000
 # Config
 # --------------------------------------------------------------------------- #
 
+def vscode_user_dir() -> str:
+    """Platform-appropriate VS Code 'User' directory."""
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Code", "User")
+    if os.name == "nt":
+        return os.path.join(os.environ.get("APPDATA", ""), "Code", "User")
+    # Linux / other
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "Code", "User")
+
+
+def app_config_dir() -> str:
+    """Platform-appropriate dir for an installed Engram config.json."""
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Engram")
+    if os.name == "nt":
+        return os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Engram")
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "engram")
+
+
 def default_config() -> dict:
-    appdata = os.environ.get("APPDATA", "")
     userprofile = os.environ.get("USERPROFILE", os.path.expanduser("~"))
     return {
         # Where VS Code stores per-workspace chat sessions.
-        "workspace_storage": os.path.join(appdata, "Code", "User", "workspaceStorage"),
+        "workspace_storage": os.path.join(vscode_user_dir(), "workspaceStorage"),
         # Output database. Lives next to Copilot CLI's session-store.db so both
         # session stores sit side by side under ~/.copilot.
         "db_path": os.path.join(userprofile, ".copilot", "session-store-vscode-chat.db"),
@@ -79,8 +99,7 @@ def load_config(cli_path):
         candidates.append(os.environ["ENGRAM_CONFIG"])
     here = os.path.dirname(os.path.abspath(__file__))
     candidates.append(os.path.join(here, "config.json"))
-    candidates.append(os.path.join(
-        os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Engram", "config.json"))
+    candidates.append(os.path.join(app_config_dir(), "config.json"))
     for c in candidates:
         if c and os.path.isfile(c):
             try:
@@ -266,14 +285,17 @@ def truncate(text, limit):
 
 
 def file_uri_to_path(uri):
-    """Decode a VS Code file:/// URI (percent-encoded) to a Windows path."""
+    """Decode a VS Code file:/// URI (percent-encoded) to a native path."""
     if not isinstance(uri, str):
         return ""
     if uri.startswith("file:///"):
         p = unquote(uri[len("file:///"):])
+        # Windows drive paths come through as "/C:/...": strip the leading slash.
         if len(p) > 2 and p[0] == "/" and p[2] == ":":
             p = p[1:]
-        return p.replace("/", "\\")
+            return p.replace("/", "\\")
+        # POSIX path.
+        return "/" + p if not p.startswith("/") else p
     return uri
 
 

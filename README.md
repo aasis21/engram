@@ -17,59 +17,60 @@ Windows Scheduled Task, reparsing only the files that changed since the last run
 ## Why
 
 VS Code stores Copilot Chat sessions as per-workspace files under
-`%APPDATA%\Code\User\workspaceStorage\<hash>\chatSessions\`. There can be
-thousands of them, totalling many GB, in two different on-disk formats. They're
-effectively write-only: hard to search, impossible to query across workspaces.
+`%APPDATA%\Code\User\workspaceStorage\<hash>\chatSessions\` (Windows) or
+`~/Library/Application Support/Code/User/workspaceStorage/<hash>/chatSessions/`
+(macOS). There can be thousands of them, totalling many GB, in two different
+on-disk formats. They're effectively write-only: hard to search, impossible to
+query across workspaces.
 
 Engram consolidates all of it into one DB you can `SELECT` from.
 
 ## Quick start
 
-Requires **Python 3.8+** and **git** on PATH. Run from any PowerShell:
+Requires **Python 3.8+** (and git to clone). Engram runs on **Windows** and
+**macOS**.
+
+```bash
+git clone https://github.com/aasis21/engram.git
+cd engram
+python install.py
+```
+
+The cross-platform installer (`install.py`) will:
+1. Copy Engram to a platform install dir (`%LOCALAPPDATA%\Engram` on Windows,
+   `~/Library/Application Support/Engram` on macOS).
+2. Install the bundled `engram` Copilot skill to `~/.copilot/skills/engram/`.
+3. Run an initial full index (a few minutes the first time).
+4. Register a background indexer that re-indexes every 10 minutes:
+   a hidden **Scheduled Task** on Windows, a **launchd LaunchAgent**
+   (`com.aasis21.engram`) on macOS.
+
+Windows users can still one-line bootstrap via PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1 | iex
 ```
 
-That will:
-1. Clone the repo to `~\engram`.
-2. Copy Engram to `%LOCALAPPDATA%\Engram`.
-3. Install the bundled `engram` Copilot skill to `~\.copilot\skills\engram\` (auto-discovered by Copilot CLI, VS Code, and Anya).
-4. Run an initial full index (a few minutes the first time).
-5. Register a hidden scheduled task **"Engram Indexer"** that re-indexes every 10 minutes.
+Then query anytime (DB lives at `~/.copilot/session-store-vscode-chat.db`):
 
-Then query anytime:
-
-```powershell
-python "%LOCALAPPDATA%\Engram\engram.py" query "service bus retry"
-python "%LOCALAPPDATA%\Engram\engram.py" status
-
-# Database lives next to Copilot CLI's session-store.db:
-#   %USERPROFILE%\.copilot\session-store-vscode-chat.db
+```bash
+python engram.py query "service bus retry"
+python engram.py status
 ```
 
 ### Install options
 
-Pass arguments to the bootstrap installer:
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/aasis21/engram/main/install.ps1))) -Interval 5
-```
-
-Or, from a local clone, call `setup.ps1` directly:
-
-```powershell
-.\setup.ps1 -Interval 5                 # run every 5 minutes
-.\setup.ps1 -InstallDir D:\Tools\Engram # custom location
-.\setup.ps1 -NoSchedule                 # install + index, no task
-.\setup.ps1 -NoInitialIndex             # register task, skip first index
+```bash
+python install.py --interval 5     # run every 5 minutes
+python install.py --no-schedule    # install + index, no background task
+python install.py --no-index       # register task, skip first index
 ```
 
 ### Uninstall
 
-```powershell
-.\uninstall.ps1               # remove the scheduled task, keep the database
-.\uninstall.ps1 -RemoveData   # remove the task AND delete the database/files
+```bash
+python install.py --uninstall                 # remove scheduler, keep the database
+python install.py --uninstall --remove-data   # remove scheduler + db + files
 ```
 
 ## Usage (CLI)
@@ -145,13 +146,15 @@ sqlite3 "%USERPROFILE%\.copilot\session-store-vscode-chat.db" "SELECT repository
 
 ## Configuration
 
-`config.json` (next to `engram.py`, or in `%LOCALAPPDATA%\Engram`) overrides
+`config.json` (next to `engram.py`, or in the platform install dir —
+`%LOCALAPPDATA%\Engram` on Windows, `~/Library/Application Support/Engram` on
+macOS) overrides
 defaults. `null` means "use the built-in default".
 
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `db_path` | `%USERPROFILE%\.copilot\session-store-vscode-chat.db` | output database (next to Copilot CLI's `session-store.db`) |
-| `workspace_storage` | `%APPDATA%\Code\User\workspaceStorage` | VS Code chat root |
+| `workspace_storage` | VS Code `User/workspaceStorage` (per-OS) | VS Code chat root |
 | `extra_workspace_storage` | `[]` | extra roots to scan (e.g. VS Code Insiders) |
 | `max_file_mb` | `120` | skip files larger than this (memory safety) |
 | `user_truncate` | `1000` | max chars stored per user message |
